@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -30,6 +29,17 @@ type cliAuthStrategy struct {
 
 func (a *cliAuthStrategy) Authenticate(ctx context.Context, req *http.Request) error {
 	return a.mgr.AuthenticateRequest(ctx, req)
+}
+
+type readOnlyTransport struct {
+	next http.RoundTripper
+}
+
+func (t *readOnlyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Method != http.MethodGet && req.Method != http.MethodHead {
+		return nil, fmt.Errorf("read-only client blocks %s requests", req.Method)
+	}
+	return t.next.RoundTrip(req)
 }
 
 // statsHooks implements hey.Hooks for --stats tracking.
@@ -66,6 +76,7 @@ func initSDK(authMgr *auth.Manager, baseURL string) {
 	var opts []hey.ClientOption
 	opts = append(opts, hey.WithAuthStrategy(&cliAuthStrategy{mgr: authMgr}))
 	opts = append(opts, hey.WithUserAgent(version.UserAgent()+" "+hey.DefaultUserAgent))
+	opts = append(opts, hey.WithTransport(&readOnlyTransport{next: http.DefaultTransport}))
 
 	if verboseFlag > 0 {
 		opts = append(opts, hey.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))))
@@ -209,29 +220,4 @@ func filterRecordingsByType(resp *generated.CalendarRecordingsResponse, recType 
 		return nil
 	}
 	return recordings
-}
-
-// --- Mutation info extraction ---
-
-// extractMutationInfoFromResult extracts mutation info from a typed SDK response
-// by JSON round-tripping to map[string]any, then using the existing extractMutationInfo.
-func extractMutationInfoFromResult(v any) string {
-	if v == nil {
-		return ""
-	}
-	data, err := json.Marshal(v)
-	if err != nil {
-		return ""
-	}
-	return extractMutationInfo(data)
-}
-
-// normalizeAny converts a typed SDK response to an any suitable for writeOK
-// by JSON round-tripping through json.Number-preserving decoder.
-func normalizeAny(v any) (any, error) {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return output.NormalizeJSONNumbers(data)
 }

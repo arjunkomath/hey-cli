@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/basecamp/hey-cli/internal/editor"
 	"github.com/basecamp/hey-cli/internal/htmlutil"
 	"github.com/basecamp/hey-cli/internal/output"
 )
@@ -19,15 +18,14 @@ func newJournalCommand() *journalCommand {
 	journalCommand := &journalCommand{}
 	journalCommand.cmd = &cobra.Command{
 		Use:   "journal",
-		Short: "Manage journal entries",
+		Short: "Read journal entries",
 		Annotations: map[string]string{
-			"agent_notes": "Subcommands: list, read, write. Read defaults to today. Write accepts --content, stdin, or opens $EDITOR.",
+			"agent_notes": "Subcommands: list, read. Read defaults to today.",
 		},
 	}
 
 	journalCommand.cmd.AddCommand(newJournalListCommand().cmd)
 	journalCommand.cmd.AddCommand(newJournalReadCommand().cmd)
-	journalCommand.cmd.AddCommand(newJournalWriteCommand().cmd)
 
 	return journalCommand
 }
@@ -97,18 +95,11 @@ func (c *journalListCommand) run(cmd *cobra.Command, args []string) error {
 	return writeOK(entries,
 		output.WithSummary(fmt.Sprintf("%d journal entries", len(entries))),
 		output.WithNotice(notice),
-		output.WithBreadcrumbs(
-			output.Breadcrumb{
-				Action:      "read",
-				Command:     "hey journal read [date]",
-				Description: "Read a journal entry",
-			},
-			output.Breadcrumb{
-				Action:      "write",
-				Command:     "hey journal write '...'",
-				Description: "Write a journal entry",
-			},
-		),
+		output.WithBreadcrumbs(output.Breadcrumb{
+			Action:      "read",
+			Command:     "hey journal read [date]",
+			Description: "Read a journal entry",
+		}),
 	)
 }
 
@@ -172,106 +163,5 @@ func (c *journalReadCommand) run(cmd *cobra.Command, args []string) error {
 
 	return writeOK(map[string]string{"date": date, "content": content},
 		output.WithSummary(fmt.Sprintf("Journal entry for %s", date)),
-		output.WithBreadcrumbs(output.Breadcrumb{
-			Action:      "write",
-			Command:     fmt.Sprintf("hey journal write %s '...'", date),
-			Description: "Edit this journal entry",
-		}),
-	)
-}
-
-// write
-
-type journalWriteCommand struct {
-	cmd     *cobra.Command
-	content string
-}
-
-func newJournalWriteCommand() *journalWriteCommand {
-	journalWriteCommand := &journalWriteCommand{}
-	journalWriteCommand.cmd = &cobra.Command{
-		Use:   "write [date] [content]",
-		Short: "Write or edit a journal entry (default: today)",
-		Example: `  hey journal write "Today was great"
-  hey journal write 2024-01-15 "Retrospective"
-  hey journal write -c "Today was great"
-  echo "Journal content" | hey journal write`,
-		RunE: journalWriteCommand.run,
-		Args: cobra.MaximumNArgs(2),
-	}
-
-	journalWriteCommand.cmd.Flags().StringVarP(&journalWriteCommand.content, "content", "c", "", "Journal content (or opens $EDITOR)")
-
-	return journalWriteCommand
-}
-
-func (c *journalWriteCommand) run(cmd *cobra.Command, args []string) error {
-	if err := requireAuth(); err != nil {
-		return err
-	}
-
-	date := time.Now().Format("2006-01-02")
-	content := c.content
-
-	switch len(args) {
-	case 2:
-		if content != "" {
-			return output.ErrUsage("--content and positional content are mutually exclusive")
-		}
-		if !isDateArg(args[0]) {
-			return output.ErrUsageHint(
-				"first argument must be a date (YYYY-MM-DD) when two positional arguments are given",
-				"hey journal write 2024-01-15 \"Content\"  or  hey journal write \"Content\"")
-		}
-		date = args[0]
-		content = args[1]
-	case 1:
-		if isDateArg(args[0]) {
-			date = args[0]
-		} else {
-			if content != "" {
-				return output.ErrUsage("--content and positional content are mutually exclusive")
-			}
-			content = args[0]
-		}
-	}
-	ctx := cmd.Context()
-	if content == "" {
-		if !stdinIsTerminal() {
-			var err error
-			content, err = readStdin()
-			if err != nil {
-				return err
-			}
-			if content == "" {
-				return output.ErrUsage("no content provided (use --content to provide inline, or pipe to stdin)")
-			}
-		} else {
-			existing, _ := sdk.Journal().GetContent(ctx, date)
-
-			var err error
-			content, err = editor.Open(existing)
-			if err != nil {
-				return output.ErrAPI(0, fmt.Sprintf("could not open editor: %v", err))
-			}
-		}
-	}
-
-	if err := sdk.Journal().Update(ctx, date, content); err != nil {
-		return convertSDKError(err)
-	}
-
-	if writer.IsStyled() {
-		fmt.Fprintf(cmd.OutOrStdout(), "Journal entry for %s saved.\n", date)
-		return nil
-	}
-
-	return writeOK(nil,
-		output.WithSummary(fmt.Sprintf("Journal entry for %s saved", date)),
-		output.WithBreadcrumbs(output.Breadcrumb{
-			Action:      "read",
-			Command:     fmt.Sprintf("hey journal read %s", date),
-			Description: "Read the journal entry",
-		}),
 	)
 }

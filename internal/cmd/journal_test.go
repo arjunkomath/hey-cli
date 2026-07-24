@@ -12,11 +12,6 @@ import (
 	"github.com/basecamp/hey-cli/internal/output"
 )
 
-func journalServer(t *testing.T) *httptest.Server {
-	t.Helper()
-	return journalServerWithReadBehavior(t, "200")
-}
-
 // journalServerWithReadBehavior creates a journal test server.
 // readBehavior controls GET /calendar/days/{date}/journal_entry:
 //
@@ -53,120 +48,11 @@ func journalServerWithReadBehavior(t *testing.T, readBehavior string) *httptest.
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(resp)
 			}
-		case r.Method == "PATCH" && strings.Contains(r.URL.Path, "/calendar/days/") && (strings.HasSuffix(r.URL.Path, "/journal_entry") || strings.HasSuffix(r.URL.Path, "/journal_entry.json")):
-			w.WriteHeader(204)
 		default:
 			w.WriteHeader(200)
 		}
 	}))
 }
-
-func runJournalWrite(t *testing.T, server *httptest.Server, args ...string) (output.Response, error) {
-	t.Helper()
-	t.Setenv("HEY_TOKEN", "test-token")
-	t.Setenv("HEY_NO_KEYRING", "1")
-	t.Setenv("HEY_BASE_URL", "")
-	tmpDir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tmpDir)
-	t.Setenv("XDG_STATE_HOME", tmpDir)
-	t.Setenv("XDG_CACHE_HOME", tmpDir)
-
-	root := newRootCmd()
-	var buf bytes.Buffer
-	root.SetOut(&buf)
-	root.SetErr(&buf)
-	root.SetArgs(append([]string{"journal", "write", "--json", "--base-url", server.URL}, args...))
-
-	err := root.Execute()
-	var resp output.Response
-	if buf.Len() > 0 {
-		_ = json.Unmarshal(buf.Bytes(), &resp)
-	}
-	return resp, err
-}
-
-func TestJournalWritePositionalContent(t *testing.T) {
-	server := journalServer(t)
-	defer server.Close()
-
-	resp, err := runJournalWrite(t, server, "Today was great")
-	if err != nil {
-		t.Fatalf("execute: %v", err)
-	}
-
-	if !strings.Contains(resp.Summary, "Journal entry") {
-		t.Errorf("summary = %q, want to contain %q", resp.Summary, "Journal entry")
-	}
-}
-
-func TestJournalWritePositionalDateAndContent(t *testing.T) {
-	server := journalServer(t)
-	defer server.Close()
-
-	resp, err := runJournalWrite(t, server, "2024-01-15", "Retrospective")
-	if err != nil {
-		t.Fatalf("execute: %v", err)
-	}
-
-	if !strings.Contains(resp.Summary, "2024-01-15") {
-		t.Errorf("summary = %q, want to contain date", resp.Summary)
-	}
-}
-
-func TestJournalWriteShortFlag(t *testing.T) {
-	server := journalServer(t)
-	defer server.Close()
-
-	resp, err := runJournalWrite(t, server, "-c", "Content via short flag")
-	if err != nil {
-		t.Fatalf("execute: %v", err)
-	}
-
-	if !strings.Contains(resp.Summary, "Journal entry") {
-		t.Errorf("summary = %q, want to contain %q", resp.Summary, "Journal entry")
-	}
-}
-
-func TestJournalWriteConflictFlagAndPositional(t *testing.T) {
-	server := journalServer(t)
-	defer server.Close()
-
-	_, err := runJournalWrite(t, server, "--content", "X", "Y")
-	if err == nil {
-		t.Fatal("expected error for conflicting flag and positional")
-	}
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("error = %q, want to contain %q", err.Error(), "mutually exclusive")
-	}
-}
-
-func TestJournalWriteTwoPositionalsInvalidDate(t *testing.T) {
-	server := journalServer(t)
-	defer server.Close()
-
-	_, err := runJournalWrite(t, server, "not-a-date", "Content")
-	if err == nil {
-		t.Fatal("expected error for invalid date in 2-arg form")
-	}
-	if !strings.Contains(err.Error(), "YYYY-MM-DD") {
-		t.Errorf("error = %q, want to mention YYYY-MM-DD", err.Error())
-	}
-}
-
-func TestJournalWriteConflictFlagAndTwoPositionals(t *testing.T) {
-	server := journalServer(t)
-	defer server.Close()
-
-	_, err := runJournalWrite(t, server, "--content", "X", "2024-01-15", "Y")
-	if err == nil {
-		t.Fatal("expected error for conflicting flag and positional")
-	}
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("error = %q, want to contain %q", err.Error(), "mutually exclusive")
-	}
-}
-
-// --- Journal read tests ---
 
 func runJournalRead(t *testing.T, server *httptest.Server, args ...string) (output.Response, error) {
 	t.Helper()

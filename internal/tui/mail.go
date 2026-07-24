@@ -27,12 +27,6 @@ type topicLoadedMsg struct {
 	images  [][]byte
 }
 
-type postingActionDoneMsg struct {
-	action  string
-	removes bool
-	err     error
-}
-
 // --- Mail section view ---
 
 type mailView struct {
@@ -104,24 +98,6 @@ func (v *mailView) Update(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		return nil, true
 
-	case postingActionDoneMsg:
-		if msg.err != nil {
-			return func() tea.Msg { return errMsg{msg.err} }, true
-		}
-		if msg.removes {
-			if v.postingList.cursor < len(v.postingList.postings) {
-				idx := v.postingList.cursor
-				v.postingList.postings = append(v.postingList.postings[:idx], v.postingList.postings[idx+1:]...)
-				if v.postingList.cursor >= len(v.postingList.postings) && v.postingList.cursor > 0 {
-					v.postingList.cursor--
-				}
-			}
-		} else if msg.action == "marked as seen" {
-			if v.postingList.cursor < len(v.postingList.postings) {
-				v.postingList.postings[v.postingList.cursor].Seen = true
-			}
-		}
-		return nil, true
 	}
 
 	// Pass through to viewport if in thread
@@ -142,20 +118,7 @@ func (v *mailView) View() string {
 }
 
 func (v *mailView) HelpBindings() []helpBinding {
-	if v.inThread {
-		return nil
-	}
-	return []helpBinding{
-		{"r", "reply"},
-		{"f", "forward"},
-		{"e", "seen"},
-		{"l", "reply later"},
-		{"a", "set aside"},
-		{"d", "feed"},
-		{"p", "paper trail"},
-		{"t", "trash"},
-		{"-", "ignore"},
-	}
+	return nil
 }
 
 func (v *mailView) SubnavItems() ([]navItem, int, string, bool) {
@@ -198,8 +161,6 @@ func (v *mailView) HandleContentKey(msg tea.KeyPressMsg) tea.Cmd {
 		v.postingList.moveDown()
 	case tea.KeyEnter:
 		return v.openSelected()
-	default:
-		return v.handlePostingAction(msg.String())
 	}
 	return nil
 }
@@ -235,61 +196,6 @@ func (v *mailView) openSelected() tea.Cmd {
 	}
 	v.loading = true
 	return v.fetchTopic(topicID, p.Summary)
-}
-
-// --- Posting actions ---
-
-func (v *mailView) handlePostingAction(key string) tea.Cmd {
-	p := v.postingList.selectedPosting()
-	if p == nil {
-		return nil
-	}
-
-	switch key {
-	case "l":
-		return v.doPostingAction("moved to Reply Later", false, func() error {
-			return v.vc.sdk.Postings().MoveToReplyLater(v.vc.ctx, p.ID)
-		})
-	case "a":
-		return v.doPostingAction("moved to Set Aside", true, func() error {
-			return v.vc.sdk.Postings().MoveToSetAside(v.vc.ctx, p.ID)
-		})
-	case "e":
-		return v.doPostingAction("marked as seen", false, func() error {
-			return v.vc.sdk.Postings().MarkSeen(v.vc.ctx, []int64{p.ID})
-		})
-	case "d":
-		return v.doPostingAction("moved to The Feed", true, func() error {
-			return v.vc.sdk.Postings().MoveToFeed(v.vc.ctx, p.ID)
-		})
-	case "p":
-		return v.doPostingAction("moved to Paper Trail", true, func() error {
-			return v.vc.sdk.Postings().MoveToPaperTrail(v.vc.ctx, p.ID)
-		})
-	case "t":
-		return v.doPostingAction("moved to Trash", true, func() error {
-			return v.vc.sdk.Postings().MoveToTrash(v.vc.ctx, p.ID)
-		})
-	case "-":
-		return v.doPostingAction("ignored", true, func() error {
-			return v.vc.sdk.Postings().Ignore(v.vc.ctx, p.ID)
-		})
-	case "r", "f":
-		topicID := p.ResolveTopicID()
-		if topicID == 0 {
-			topicID = p.ID
-		}
-		v.loading = true
-		return v.fetchTopic(topicID, p.Summary)
-	}
-	return nil
-}
-
-func (v *mailView) doPostingAction(label string, removes bool, fn func() error) tea.Cmd {
-	return func() tea.Msg {
-		err := fn()
-		return postingActionDoneMsg{action: label, removes: removes, err: err}
-	}
 }
 
 // --- SDK type converters ---

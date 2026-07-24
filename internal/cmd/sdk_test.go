@@ -1,11 +1,57 @@
 package cmd
 
 import (
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/basecamp/hey-sdk/go/pkg/generated"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestReadOnlyTransportAllowsReads(t *testing.T) {
+	transport := &readOnlyTransport{next: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("ok")),
+			Request:    req,
+		}, nil
+	})}
+
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		req, err := http.NewRequest(method, "https://example.com", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := transport.RoundTrip(req); err != nil {
+			t.Errorf("%s request returned error: %v", method, err)
+		}
+	}
+}
+
+func TestReadOnlyTransportBlocksWrites(t *testing.T) {
+	transport := &readOnlyTransport{next: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		t.Fatalf("blocked %s request reached underlying transport", req.Method)
+		return nil, nil
+	})}
+
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+		req, err := http.NewRequest(method, "https://example.com", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := transport.RoundTrip(req); err == nil {
+			t.Errorf("%s request was not blocked", method)
+		}
+	}
+}
 
 func TestFormatTimestampUTC(t *testing.T) {
 	// 2024-01-15 00:00:00 UTC
