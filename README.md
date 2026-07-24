@@ -23,6 +23,8 @@ A read-only CLI and TUI for [HEY](https://hey.com).
 
 *Read emails, mailboxes, calendars, todos, time tracking, and journal entries — all from your terminal, without changing HEY data.*
 
+This is a fork of [Basecamp's hey-cli](https://github.com/basecamp/hey-cli) with all HEY data mutation features removed. It provides a strictly read-only interface: it cannot send email, change mailbox state, modify todos or habits, start or stop time tracking, or write journal entries.
+
 ## Install
 
 Requires Go 1.26+. Use [mise](https://mise.jdx.dev) to install the correct version:
