@@ -29,13 +29,6 @@ hey boxes --limit
 hey calendars
 hey commands
 hey completion
-hey compose
-hey compose --bcc
-hey compose --cc
-hey compose --message
-hey compose --subject
-hey compose --thread-id
-hey compose --to
 hey config
 hey config set
 hey config show
@@ -43,26 +36,16 @@ hey doctor
 hey drafts
 hey drafts --all
 hey drafts --limit
-hey habit
-hey habit complete
-hey habit complete --date
-hey habit uncomplete
-hey habit uncomplete --date
 hey journal
 hey journal list
 hey journal list --all
 hey journal list --limit
 hey journal read
-hey journal write
-hey journal write --content
 hey recordings
 hey recordings --all
 hey recordings --ends-on
 hey recordings --limit
 hey recordings --starts-on
-hey reply
-hey reply --message
-hey seen
 hey setup
 hey skill
 hey skill install
@@ -72,17 +55,8 @@ hey timetrack current
 hey timetrack list
 hey timetrack list --all
 hey timetrack list --limit
-hey timetrack start
-hey timetrack stop
 hey todo
-hey todo add
-hey todo add --date
-hey todo add --title
-hey todo complete
-hey todo delete
 hey todo list
 hey todo list --all
 hey todo list --limit
-hey todo uncomplete
 hey tui
-hey unseen

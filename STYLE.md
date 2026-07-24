@@ -18,63 +18,53 @@ Individual CLI commands go into `./internal/cmd`. Each command or sub-command ha
 Each command is a struct that holds its `*cobra.Command` and any flag fields. The constructor is named `newXyzCommand()`, creates the struct, builds the cobra.Command inline, defines flags, and returns the struct pointer:
 
 ```go
-type composeCommand struct {
-	cmd     *cobra.Command
-	to      string
-	subject string
-	message string
+type draftsCommand struct {
+	cmd   *cobra.Command
+	limit int
 }
 
-func newComposeCommand() *composeCommand {
-	composeCommand := &composeCommand{}
-	composeCommand.cmd = &cobra.Command{
-		Use:   "compose",
-		Short: "Compose a new message",
-		RunE:  composeCommand.run,
+func newDraftsCommand() *draftsCommand {
+	draftsCommand := &draftsCommand{}
+	draftsCommand.cmd = &cobra.Command{
+		Use:   "drafts",
+		Short: "List drafts",
+		RunE:  draftsCommand.run,
 	}
 
-	composeCommand.cmd.Flags().StringVar(&composeCommand.to, "to", "", "Recipient email address(es)")
-	composeCommand.cmd.Flags().StringVar(&composeCommand.subject, "subject", "", "Message subject (required)")
-	composeCommand.cmd.Flags().StringVarP(&composeCommand.message, "message", "m", "", "Message body")
+	draftsCommand.cmd.Flags().IntVar(&draftsCommand.limit, "limit", 0, "Maximum number of drafts to show")
 
-	return composeCommand
+	return draftsCommand
 }
 ```
 
 The `run` method is a receiver on the command struct. It always starts with `requireAuth()`, handles `jsonOutput` early, and returns an `error`:
 
 ```go
-func (c *composeCommand) run(cmd *cobra.Command, args []string) error {
+func (c *draftsCommand) run(cmd *cobra.Command, args []string) error {
 	if err := requireAuth(); err != nil {
 		return err
 	}
 
-	if jsonOutput {
-		data, err := apiClient.Get("/path.json")
-		if err != nil {
-			return err
-		}
-		return printRawJSON(data)
+	result, err := sdk.Entries().ListDrafts(cmd.Context(), nil)
+	if err != nil {
+		return convertSDKError(err)
 	}
 
-	// Formatted output using newTable() or fmt.Println
-	return nil
+	return writeOK(result)
 }
 ```
 
-Parent commands that only group subcommands (like `todo`, `journal`, `timetrack`, `habit`) have no `RunE` — they only call `AddCommand`:
+Parent commands that only group subcommands (like `todo`, `journal`, and `timetrack`) have no `RunE` — they only call `AddCommand`:
 
 ```go
 func newTodoCommand() *todoCommand {
 	todoCommand := &todoCommand{}
 	todoCommand.cmd = &cobra.Command{
 		Use:   "todo",
-		Short: "Manage todos",
+		Short: "Read todos",
 	}
 
 	todoCommand.cmd.AddCommand(newTodoListCommand().cmd)
-	todoCommand.cmd.AddCommand(newTodoAddCommand().cmd)
-	todoCommand.cmd.AddCommand(newTodoCompleteCommand().cmd)
 
 	return todoCommand
 }

@@ -19,9 +19,11 @@
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⠛⠛⠻⠟⠛⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ```
 
-A CLI and TUI for [HEY](https://hey.com).
+A read-only CLI and TUI for [HEY](https://hey.com).
 
-*Read and send emails, manage boxes, calendars, todos, habits, time tracking, and journal entries — all from your terminal.*
+*Read emails, mailboxes, calendars, todos, time tracking, and journal entries — all from your terminal, without changing HEY data.*
+
+This is a fork of [Basecamp's hey-cli](https://github.com/basecamp/hey-cli) with all HEY data mutation features removed. It provides a strictly read-only interface: it cannot send email, change mailbox state, modify todos or habits, start or stop time tracking, or write journal entries.
 
 ## Install
 
@@ -70,9 +72,6 @@ All commands support `--json` for raw JSON output and `--base-url` to override t
 hey boxes                          # list mailboxes
 hey box imbox                      # list postings in a box (by name or ID)
 hey threads 123                    # read a full email thread
-hey reply 123 -m "Thanks!"        # reply to a thread (or omit -m to open $EDITOR)
-hey compose --to user@example.com --subject "Hello"  # compose a new message
-hey compose --to user@example.com --cc bob@example.com --bcc carol@example.org --subject "Hello"  # with CC/BCC
 hey drafts                         # list drafts
 ```
 
@@ -87,24 +86,11 @@ hey recordings 1 --starts-on 2026-01-01 --ends-on 2026-01-31  # list events in a
 
 ```bash
 hey todo list                      # list todos
-hey todo add "Buy milk"            # create a todo
-hey todo complete 1                # mark done
-hey todo uncomplete 1              # mark undone
-hey todo delete 1                  # delete
-```
-
-### Habits
-
-```bash
-hey habit complete 1               # mark habit done (today or --date YYYY-MM-DD)
-hey habit uncomplete 1             # undo habit completion
 ```
 
 ### Time tracking
 
 ```bash
-hey timetrack start                # start tracking
-hey timetrack stop                 # stop tracking
 hey timetrack current              # show active track
 hey timetrack list                 # list all tracks
 ```
@@ -114,7 +100,6 @@ hey timetrack list                 # list all tracks
 ```bash
 hey journal list                   # list entries
 hey journal read                   # read today's entry (or pass YYYY-MM-DD)
-hey journal write "..."            # write today's entry (or omit content for $EDITOR)
 ```
 
 ## Agent Skill

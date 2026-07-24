@@ -103,18 +103,11 @@ func (c *boxCommand) run(cmd *cobra.Command, args []string) error {
 	return writeOK(resp,
 		output.WithSummary(fmt.Sprintf("%d postings in %s", len(postings), resp.Name)),
 		output.WithNotice(notice),
-		output.WithBreadcrumbs(
-			output.Breadcrumb{
-				Action:      "read",
-				Command:     "hey threads <id>",
-				Description: "Read an email thread",
-			},
-			output.Breadcrumb{
-				Action:      "compose",
-				Command:     "hey compose --to <email> --subject <subject>",
-				Description: "Compose a new message",
-			},
-		),
+		output.WithBreadcrumbs(output.Breadcrumb{
+			Action:      "read",
+			Command:     "hey threads <id>",
+			Description: "Read an email thread",
+		}),
 	)
 }
 

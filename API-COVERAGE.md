@@ -1,7 +1,6 @@
-# API Coverage
+# Read-only API Coverage
 
-Mapping of HEY API endpoints used by the CLI. Most endpoints use the HEY SDK (`hey-sdk/go`).
-The legacy `internal/client/` is used only for HTML-scraping gap operations marked below.
+Mapping of HEY API endpoints used by the CLI. All data-access endpoints are read-only and use the HEY SDK (`hey-sdk/go`).
 
 | Endpoint | Method | Client | CLI Command | Status |
 |----------|--------|--------|-------------|--------|
@@ -15,20 +14,8 @@ The legacy `internal/client/` is used only for HTML-scraping gap operations mark
 | `/bubblebox.json` | GET | SDK `Boxes().GetBubblebox` | `hey box bubblebox` | covered |
 | `/calendars.json` | GET | SDK `Calendars().List` | `hey calendars` | covered |
 | `/calendars/{id}/recordings.json` | GET | SDK `Calendars().GetRecordings` | `hey recordings <calendar-id>`, `hey todo list`, `hey timetrack list`, `hey journal list` | covered |
-| `/topics/{id}/entries` | GET (HTML) | Legacy `GetTopicEntries` | `hey threads <id>` | gap: SDK Entry lacks body |
+| `/topics/{id}/entries` | GET (HTML) | SDK `GetHTML` | `hey threads <id>` | gap: SDK Entry lacks body |
 | `/entries/drafts.json` | GET | SDK `Entries().ListDrafts` | `hey drafts` | covered |
-| `/topics/messages` | POST | SDK `Messages().Create` | `hey compose` | covered |
-| `/topics/{id}/messages` | POST | SDK `Messages().CreateTopicMessage` | `hey compose --topic` | covered |
-| `/entries/{id}/replies` | POST | SDK `Entries().CreateReply` | `hey reply <topic-id>` | covered |
-| `/calendar/days/{date}/habits/{id}/completions.json` | POST | SDK `Habits().Complete` | `hey habit complete <id>` | covered |
-| `/calendar/days/{date}/habits/{id}/completions.json` | DELETE | SDK `Habits().Uncomplete` | `hey habit uncomplete <id>` | covered |
 | `/calendar/days/{date}/journal_entry.json` | GET | SDK `Journal().Get` | `hey journal read [date]` | partial: falls back to legacy |
-| `/calendar/days/{date}/journal_entry/edit` | GET (HTML) | Legacy `GetJournalEntry` | `hey journal read [date]` | gap: fallback for 204 response |
-| `/calendar/days/{date}/journal_entry.json` | PATCH | SDK `Journal().Update` | `hey journal write [date]` | covered |
+| `/calendar/days/{date}/journal_entry/edit` | GET (HTML) | SDK `Journal().GetContent` | `hey journal read [date]` | fallback for 204 response |
 | `/calendar/ongoing_time_track.json` | GET | SDK `TimeTracks().GetOngoing` | `hey timetrack current` | covered |
-| `/calendar/ongoing_time_track.json` | POST | SDK `TimeTracks().Start` | `hey timetrack start` | covered |
-| `/calendar/time_tracks/{id}.json` | PUT | SDK `TimeTracks().Stop` | `hey timetrack stop` | covered |
-| `/calendar/todos.json` | POST | SDK `CalendarTodos().Create` | `hey todo add` | covered |
-| `/calendar/todos/{id}/completions.json` | POST | SDK `CalendarTodos().Complete` | `hey todo complete <id>` | covered |
-| `/calendar/todos/{id}/completions.json` | DELETE | SDK `CalendarTodos().Uncomplete` | `hey todo uncomplete <id>` | covered |
-| `/calendar/todos/{id}.json` | DELETE | SDK `CalendarTodos().Delete` | `hey todo delete <id>` | covered |

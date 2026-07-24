@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -17,22 +16,16 @@ func newTodoCommand() *todoCommand {
 	todoCommand := &todoCommand{}
 	todoCommand.cmd = &cobra.Command{
 		Use:   "todo",
-		Short: "Manage todos",
+		Short: "Read todos",
 		Annotations: map[string]string{
-			"agent_notes": "Subcommands: list, add, complete, uncomplete, delete. Use list --ids-only to pipe IDs to complete/delete.",
+			"agent_notes": "Subcommands: list.",
 		},
 	}
 
 	todoCommand.cmd.AddCommand(newTodoListCommand().cmd)
-	todoCommand.cmd.AddCommand(newTodoAddCommand().cmd)
-	todoCommand.cmd.AddCommand(newTodoCompleteCommand().cmd)
-	todoCommand.cmd.AddCommand(newTodoUncompleteCommand().cmd)
-	todoCommand.cmd.AddCommand(newTodoDeleteCommand().cmd)
 
 	return todoCommand
 }
-
-// list
 
 type todoListCommand struct {
 	cmd   *cobra.Command
@@ -62,14 +55,12 @@ func (c *todoListCommand) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx := cmd.Context()
-	resp, err := listPersonalRecordings(ctx)
+	resp, err := listPersonalRecordings(cmd.Context())
 	if err != nil {
 		return err
 	}
 
 	todos := filterRecordingsByType(resp, "Calendar::Todo")
-
 	total := len(todos)
 	if c.limit > 0 && !c.all && len(todos) > c.limit {
 		todos = todos[:c.limit]
@@ -84,12 +75,12 @@ func (c *todoListCommand) run(cmd *cobra.Command, args []string) error {
 
 		table := newTable(cmd.OutOrStdout())
 		table.addRow([]string{"ID", "Title", "Date", "Done"})
-		for _, t := range todos {
+		for _, todo := range todos {
 			done := ""
-			if !t.CompletedAt.IsZero() {
+			if !todo.CompletedAt.IsZero() {
 				done = "yes"
 			}
-			table.addRow([]string{fmt.Sprintf("%d", t.Id), t.Title, formatDate(t.StartsAt), done})
+			table.addRow([]string{fmt.Sprintf("%d", todo.Id), todo.Title, formatDate(todo.StartsAt), done})
 		}
 		table.print()
 		if notice != "" {
@@ -101,223 +92,5 @@ func (c *todoListCommand) run(cmd *cobra.Command, args []string) error {
 	return writeOK(todos,
 		output.WithSummary(fmt.Sprintf("%d todos", len(todos))),
 		output.WithNotice(notice),
-		output.WithBreadcrumbs(
-			output.Breadcrumb{
-				Action:      "add",
-				Command:     "hey todo add '...'",
-				Description: "Add a new todo",
-			},
-			output.Breadcrumb{
-				Action:      "complete",
-				Command:     "hey todo complete <id>",
-				Description: "Mark a todo as complete",
-			},
-		),
 	)
-}
-
-// add
-
-type todoAddCommand struct {
-	cmd   *cobra.Command
-	title string
-	date  string
-}
-
-func newTodoAddCommand() *todoAddCommand {
-	todoAddCommand := &todoAddCommand{}
-	todoAddCommand.cmd = &cobra.Command{
-		Use:   "add [title]",
-		Short: "Create a new todo",
-		Example: `  hey todo add "Buy groceries"
-  hey todo add -t "Meeting prep" --date 2024-01-20
-  hey todo add --title "Review PR" --json
-  echo "Buy milk" | hey todo add`,
-		RunE: todoAddCommand.run,
-		Args: cobra.MaximumNArgs(1),
-	}
-
-	todoAddCommand.cmd.Flags().StringVarP(&todoAddCommand.title, "title", "t", "", "Todo title")
-	todoAddCommand.cmd.Flags().StringVar(&todoAddCommand.date, "date", "", "Due date (YYYY-MM-DD)")
-
-	return todoAddCommand
-}
-
-func (c *todoAddCommand) run(cmd *cobra.Command, args []string) error {
-	if err := requireAuth(); err != nil {
-		return err
-	}
-
-	title := c.title
-	if title != "" && len(args) > 0 {
-		return output.ErrUsage("--title and positional argument are mutually exclusive")
-	}
-	if title == "" && len(args) > 0 {
-		title = args[0]
-	}
-	if title == "" && !stdinIsTerminal() {
-		var err error
-		title, err = readStdin()
-		if err != nil {
-			return err
-		}
-	}
-	if title == "" {
-		return output.ErrUsageHint("title is required",
-			"hey todo add \"Buy milk\"  or  hey todo add --title \"Buy milk\"")
-	}
-
-	ctx := cmd.Context()
-	result, err := sdk.CalendarTodos().Create(ctx, title, c.date)
-	if err != nil {
-		return convertSDKError(err)
-	}
-
-	if writer.IsStyled() {
-		fmt.Fprintln(cmd.OutOrStdout(), "Todo created.")
-		return nil
-	}
-
-	normalized, nerr := normalizeAny(result)
-	if nerr != nil {
-		return writeOK(nil, output.WithSummary("Todo created"))
-	}
-	return writeOK(normalized, output.WithSummary("Todo created"))
-}
-
-// complete
-
-type todoCompleteCommand struct {
-	cmd *cobra.Command
-}
-
-func newTodoCompleteCommand() *todoCompleteCommand {
-	todoCompleteCommand := &todoCompleteCommand{}
-	todoCompleteCommand.cmd = &cobra.Command{
-		Use:     "complete <id>",
-		Short:   "Mark a todo as complete",
-		Example: `  hey todo complete 456`,
-		RunE:    todoCompleteCommand.run,
-		Args:    usageExactOneArg(),
-	}
-
-	return todoCompleteCommand
-}
-
-func (c *todoCompleteCommand) run(cmd *cobra.Command, args []string) error {
-	if err := requireAuth(); err != nil {
-		return err
-	}
-
-	id, err := strconv.ParseInt(args[0], 10, 64)
-	if err != nil {
-		return output.ErrUsage(fmt.Sprintf("invalid todo ID: %s", args[0]))
-	}
-
-	ctx := cmd.Context()
-	result, err := sdk.CalendarTodos().Complete(ctx, id)
-	if err != nil {
-		return convertSDKError(err)
-	}
-
-	if writer.IsStyled() {
-		fmt.Fprintf(cmd.OutOrStdout(), "Todo completed.%s\n", extractMutationInfoFromResult(result))
-		return nil
-	}
-
-	normalized, nerr := normalizeAny(result)
-	if nerr != nil {
-		return writeOK(nil, output.WithSummary("Todo completed"))
-	}
-	return writeOK(normalized, output.WithSummary("Todo completed"))
-}
-
-// uncomplete
-
-type todoUncompleteCommand struct {
-	cmd *cobra.Command
-}
-
-func newTodoUncompleteCommand() *todoUncompleteCommand {
-	todoUncompleteCommand := &todoUncompleteCommand{}
-	todoUncompleteCommand.cmd = &cobra.Command{
-		Use:     "uncomplete <id>",
-		Short:   "Mark a todo as incomplete",
-		Example: `  hey todo uncomplete 456`,
-		RunE:    todoUncompleteCommand.run,
-		Args:    usageExactOneArg(),
-	}
-
-	return todoUncompleteCommand
-}
-
-func (c *todoUncompleteCommand) run(cmd *cobra.Command, args []string) error {
-	if err := requireAuth(); err != nil {
-		return err
-	}
-
-	id, err := strconv.ParseInt(args[0], 10, 64)
-	if err != nil {
-		return output.ErrUsage(fmt.Sprintf("invalid todo ID: %s", args[0]))
-	}
-
-	ctx := cmd.Context()
-	result, err := sdk.CalendarTodos().Uncomplete(ctx, id)
-	if err != nil {
-		return convertSDKError(err)
-	}
-
-	if writer.IsStyled() {
-		fmt.Fprintf(cmd.OutOrStdout(), "Todo marked incomplete.%s\n", extractMutationInfoFromResult(result))
-		return nil
-	}
-
-	normalized, nerr := normalizeAny(result)
-	if nerr != nil {
-		return writeOK(nil, output.WithSummary("Todo marked incomplete"))
-	}
-	return writeOK(normalized, output.WithSummary("Todo marked incomplete"))
-}
-
-// delete
-
-type todoDeleteCommand struct {
-	cmd *cobra.Command
-}
-
-func newTodoDeleteCommand() *todoDeleteCommand {
-	todoDeleteCommand := &todoDeleteCommand{}
-	todoDeleteCommand.cmd = &cobra.Command{
-		Use:     "delete <id>",
-		Short:   "Delete a todo",
-		Example: `  hey todo delete 456`,
-		RunE:    todoDeleteCommand.run,
-		Args:    usageExactOneArg(),
-	}
-
-	return todoDeleteCommand
-}
-
-func (c *todoDeleteCommand) run(cmd *cobra.Command, args []string) error {
-	if err := requireAuth(); err != nil {
-		return err
-	}
-
-	id, err := strconv.ParseInt(args[0], 10, 64)
-	if err != nil {
-		return output.ErrUsage(fmt.Sprintf("invalid todo ID: %s", args[0]))
-	}
-
-	ctx := cmd.Context()
-	err = sdk.CalendarTodos().Delete(ctx, id)
-	if err != nil {
-		return convertSDKError(err)
-	}
-
-	if writer.IsStyled() {
-		fmt.Fprintln(cmd.OutOrStdout(), "Todo deleted.")
-		return nil
-	}
-
-	return writeOK(nil, output.WithSummary("Todo deleted"))
 }

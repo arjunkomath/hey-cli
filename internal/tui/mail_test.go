@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -100,48 +99,6 @@ func TestMailViewIgnoresUnrelatedMessages(t *testing.T) {
 	_, consumed := v.Update(calendarsLoadedMsg{})
 	if consumed {
 		t.Error("calendarsLoadedMsg should not be consumed by mailView")
-	}
-}
-
-// --- Posting actions ---
-
-func TestMailViewPostingActionRemoves(t *testing.T) {
-	v := mailWithPostings()
-	if len(v.postingList.postings) != 2 {
-		t.Fatalf("expected 2 postings, got %d", len(v.postingList.postings))
-	}
-
-	v.Update(postingActionDoneMsg{action: "moved to Trash", removes: true})
-	if len(v.postingList.postings) != 1 {
-		t.Errorf("expected 1 posting after remove, got %d", len(v.postingList.postings))
-	}
-}
-
-func TestMailViewPostingActionMarksSeen(t *testing.T) {
-	v := mailWithPostings()
-	if v.postingList.postings[0].Seen {
-		t.Fatal("first posting should be unseen")
-	}
-
-	v.Update(postingActionDoneMsg{action: "marked as seen"})
-	if !v.postingList.postings[0].Seen {
-		t.Error("first posting should be seen after action")
-	}
-}
-
-func TestMailViewPostingActionError(t *testing.T) {
-	v := mailWithPostings()
-	cmd, consumed := v.Update(postingActionDoneMsg{err: fmt.Errorf("network error")})
-
-	if !consumed {
-		t.Error("postingActionDoneMsg with error should be consumed")
-	}
-	if cmd == nil {
-		t.Fatal("should return a command that produces errMsg")
-	}
-	msg := cmd()
-	if _, ok := msg.(errMsg); !ok {
-		t.Errorf("command produced %T, want errMsg", msg)
 	}
 }
 
@@ -268,18 +225,8 @@ func TestMailViewRendersEmptyList(t *testing.T) {
 func TestMailViewHelpBindings(t *testing.T) {
 	v := mailWithPostings()
 	bindings := v.HelpBindings()
-	if len(bindings) == 0 {
-		t.Fatal("mail should have help bindings for posting actions")
-	}
-
-	keys := make(map[string]bool)
-	for _, b := range bindings {
-		keys[b.key] = true
-	}
-	for _, expected := range []string{"r", "f", "e", "l", "a", "t"} {
-		if !keys[expected] {
-			t.Errorf("missing help binding for key %q", expected)
-		}
+	if len(bindings) != 0 {
+		t.Error("read-only mail view should have no posting action bindings")
 	}
 }
 
