@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -26,13 +27,16 @@ func TestReadOnlyTransportAllowsReads(t *testing.T) {
 	})}
 
 	for _, method := range []string{http.MethodGet, http.MethodHead} {
-		req, err := http.NewRequest(method, "https://example.com", nil)
+		req, err := http.NewRequestWithContext(context.Background(), method, "https://example.com", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := transport.RoundTrip(req); err != nil {
+		resp, err := transport.RoundTrip(req)
+		if err != nil {
 			t.Errorf("%s request returned error: %v", method, err)
+			continue
 		}
+		resp.Body.Close()
 	}
 }
 
@@ -43,11 +47,15 @@ func TestReadOnlyTransportBlocksWrites(t *testing.T) {
 	})}
 
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
-		req, err := http.NewRequest(method, "https://example.com", nil)
+		req, err := http.NewRequestWithContext(context.Background(), method, "https://example.com", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := transport.RoundTrip(req); err == nil {
+		resp, err := transport.RoundTrip(req)
+		if resp != nil {
+			resp.Body.Close()
+		}
+		if err == nil {
 			t.Errorf("%s request was not blocked", method)
 		}
 	}
